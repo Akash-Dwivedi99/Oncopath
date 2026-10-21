@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "OncoPath Setup",
+      "type": "shell",
+      "command": "$envPath = Join-Path $env:LOCALAPPDATA 'OncoPath\\venv'; $pythonPath = Join-Path $envPath 'Scripts\\python.exe'; if (-not (Test-Path $pythonPath)) { python -m venv $envPath; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }; & $pythonPath -m pip install -r requirements.txt; exit $LASTEXITCODE",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "OncoPath API",
+      "type": "process",
+      "command": "${env:LOCALAPPDATA}\\OncoPath\\venv\\Scripts\\python.exe",
+      "args": ["-m", "uvicorn", "backend.app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8000"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "oncopath-api",
+        "pattern": [{ "regexp": "^(.*)$" }],
+        "background": { "activeOnStart": true, "beginsPattern": ".*", "endsPattern": "Uvicorn running on" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "oncopath" }
+    },
+    {
+      "label": "OncoPath Dashboard",
+      "type": "process",
+      "command": "${env:LOCALAPPDATA}\\OncoPath\\venv\\Scripts\\python.exe",
+      "args": ["-m", "streamlit", "run", "frontend\\app.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "oncopath-dashboard",
+        "pattern": [{ "regexp": "^(.*)$" }],
+        "background": { "activeOnStart": true, "beginsPattern": ".*", "endsPattern": "Local URL: http://localhost:8501" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "oncopath" }
+    },
+    {
+      "label": "OncoPath Full Stack",
+      "dependsOn": ["OncoPath Setup", "OncoPath API", "OncoPath Dashboard"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ]
+}
