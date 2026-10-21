@@ -2,19 +2,28 @@
 setlocal
 cd /d "%~dp0"
 
-python -m streamlit --version >nul 2>&1
-if errorlevel 1 (
-    echo Streamlit is not installed in the Python environment used by this launcher.
-    echo Install the project dependencies with:
-    echo     python -m pip install -r requirements.txt
-    echo.
-    pause
-    exit /b 1
+if not exist ".venv\Scripts\python.exe" (
+    echo Creating local Python environment...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo Could not create the environment. Install Python 3.10 or newer and try again.
+        pause
+        exit /b 1
+    )
 )
 
-python -m streamlit run "%~dp0app.py"
+call ".venv\Scripts\activate.bat"
+python -c "import fastapi, uvicorn, streamlit, pandas, numpy, networkx, scipy, sklearn, plotly, requests, dotenv" >nul 2>&1
 if errorlevel 1 (
-    echo.
-    echo OncoPath stopped with an error. Review the message above.
-    pause
+    python -m pip install -r requirements.txt
+    if errorlevel 1 (
+        echo Dependency installation failed. Check your internet connection and requirements.txt.
+        pause
+        exit /b 1
+    )
 )
+
+start "OncoPath API" cmd /k ""%~dp0run_backend.bat""
+timeout /t 3 /nobreak >nul
+start "OncoPath Dashboard" cmd /k ""%~dp0run_frontend.bat""
+echo OncoPath is starting. Keep both terminal windows open.
