@@ -13,8 +13,8 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 API_URL = os.getenv("ONCOPATH_API_URL", "http://127.0.0.1:8000").rstrip("/")
 if get_script_run_ctx(suppress_warning=True) is None:
     raise SystemExit(
-        "OncoPath frontend must be launched by Streamlit. In VS Code, choose "
-        "Terminal > Run Task > OncoPath Full Stack, or double-click Launch OncoPath.bat."
+        "OncoPath is a Streamlit app. Start it with the VS Code task "
+        "'OncoPath Full Stack' or double-click 'Launch OncoPath.bat'."
     )
 st.set_page_config(page_title="OncoPath | Cohort Intelligence", page_icon="🧬", layout="wide")
 st.markdown("""
@@ -44,8 +44,10 @@ def api_get(path, params=None, timeout=45):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
-        st.error(f"Could not reach the OncoPath API at {API_URL}. Start the backend with `python -m uvicorn backend.app.main:app --reload`. Details: {exc}")
+        st.error("The OncoPath API is not responding. Start the **OncoPath API** task in VS Code, or double-click **Launch OncoPath.bat** in the project folder.")
+        st.caption(f"API address: {API_URL} · Details: {exc}")
         st.stop()
+        raise SystemExit("OncoPath API is not responding.")
 
 
 @st.cache_data(ttl=60)
@@ -58,28 +60,46 @@ def get_metadata():
 try:
     metadata = get_metadata()
 except requests.RequestException as exc:
-    st.error(f"Backend not connected: {API_URL}. Start the backend with `python -m uvicorn backend.app.main:app --reload`. {exc}")
+    st.error("The dashboard cannot reach the backend yet.")
+    st.markdown("**To start it in VS Code:** choose **Terminal → Run Task → OncoPath API**. Wait for ‘Uvicorn running on http://127.0.0.1:8000’, then refresh this page.")
+    st.markdown("Or double-click **Launch OncoPath.bat** in the project folder to start both parts.")
+    st.caption(f"API address: {API_URL} · Details: {exc}")
     st.stop()
+    raise SystemExit("OncoPath API is not responding.")
 
 with st.sidebar:
-    st.markdown("### Cohort filters")
+    st.markdown("### Explore a cohort")
+    st.success("Backend connected", icon="✅")
     cancer = st.selectbox("Cancer type", ["All", *metadata["cancer_types"]])
     stage = st.selectbox("Tumor stage", ["All", *metadata["stages"]])
     params = {"cancer": cancer, "stage": stage}
     st.divider()
-    st.caption(f"Dataset · {metadata['records']:,} records")
-    st.caption(f"Prediction label · `{metadata['target']}`")
+    st.caption(f"Dataset size: {metadata['records']:,} records")
+    st.caption(f"Outcome label: `{metadata['target']}`")
+    st.caption("These filters update cohort summaries and the graph. Patient ID lookup searches the full dataset.")
+
+with st.expander("How to use this dashboard", expanded=False):
+    st.markdown("""
+    1. Choose a cancer type or stage in the left panel.
+    2. **Cohort overview** summarizes the selected records.
+    3. **Graph & DSA** explores feature co-occurrence and graph algorithms.
+    4. **Model evaluation** reports a held-out Random Forest baseline.
+    5. **Patient lookup** searches by ID across all records.
+
+    The outcome chart shows labels in this dataset; it is not an individual patient's medical risk.
+    """)
 
 cohort = api_get("/api/cohort", params)
 metric_cols = st.columns(4)
 metric_cols[0].metric("Patients", f"{cohort['records']:,}")
 metric_cols[1].metric("Cancer types", cohort["cancer_types"])
-metric_cols[2].metric("5-year death label", f"{cohort['death_percent']:.1f}%" if cohort["death_percent"] is not None else "—")
-metric_cols[3].metric("Dataset fields", len(metadata["columns"]) - 1)
+metric_cols[2].metric("Records labeled death within 5 years", f"{cohort['death_percent']:.1f}%" if cohort["death_percent"] is not None else "—", help="Share of records with the supplied death_within_5yr label. This is not a personal risk prediction.")
+metric_cols[3].metric("Clinical fields", len(metadata["columns"]) - 1)
 
 overview_tab, graph_tab, model_tab, patient_tab = st.tabs(["Cohort overview", "Graph & DSA", "Model evaluation", "Patient lookup"])
 
 with overview_tab:
+    st.caption("Use the left-side filters to focus the summaries on a cancer type or stage.")
     left, right = st.columns([1.1, .9])
     with left:
         st.subheader("Cohort composition")
@@ -89,7 +109,7 @@ with overview_tab:
                          color_discrete_sequence=px.colors.qualitative.Bold,
                          labels={"cancer_type":"Cancer type", "patients":"Patients", "tumor_stage":"Stage"})
             fig.update_layout(height=390, margin=dict(l=0, r=0, t=15, b=0), legend_title="Stage")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     with right:
         st.subheader("Outcome label by cancer")
         outcome = pd.DataFrame(cohort["outcome_rates"])
@@ -98,7 +118,7 @@ with overview_tab:
                          color_discrete_sequence=px.colors.qualitative.Bold,
                          labels={"cancer_type":"Cancer type", "death_percent":"Death label (%)"})
             fig.update_layout(height=390, showlegend=False, margin=dict(l=0, r=0, t=15, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     st.subheader("Clinical and biomarker distributions")
     choices = [field for field in ["age", "bmi", "tumor_size_cm", "ki67_percent", "crp_mg_l", "CEA", "CA 15-3", "CYFRA 21-1", "ca_19_9_u_ml"] if field in metadata["columns"]]
     if choices:
@@ -109,11 +129,11 @@ with overview_tab:
             fig = px.box(measure_df, x="cancer_type", y=measure, color="cancer_type", points="outliers",
                          color_discrete_sequence=px.colors.qualitative.Bold)
             fig.update_layout(height=360, showlegend=False, margin=dict(l=0, r=0, t=15, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 with graph_tab:
     st.subheader("Feature-value co-occurrence network")
-    st.write("Nodes represent categorical clinical feature values; links count how often two values occur in the same patient record. This graph describes the supplied cohort and is not a biological interaction network.")
+    st.write("Each node is a clinical feature value. A link means two values appeared in the same patient record; a stronger link means they co-occurred more often. This describes the supplied cohort, not biological gene interactions.")
     graph_data = api_get("/api/graph", params)
     summary = graph_data["summary"]
     g1, g2, g3 = st.columns(3)
@@ -142,7 +162,7 @@ with graph_tab:
             hovertemplate="%{text}<br>Rows: %{customdata[0]}<br>Connections: %{customdata[1]}<extra></extra>")
         fig = go.Figure([edge_trace, node_trace])
         fig.update_layout(height=600, margin=dict(l=0,r=0,t=10,b=0), xaxis=dict(visible=False), yaxis=dict(visible=False), showlegend=False)
-        st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
+        st.plotly_chart(fig, width="stretch", config={"scrollZoom": True})
         with st.expander("Run graph algorithms"):
             node_ids = [item["id"] for item in nodes]
             source = st.selectbox("Starting node", node_ids)
@@ -163,16 +183,16 @@ with graph_tab:
                     st.warning(f"No path available for these nodes: {detail}")
         with st.expander("Centrality and communities"):
             st.markdown("**PageRank and degree centrality**")
-            st.dataframe(pd.DataFrame(summary["top_centrality"]), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(summary["top_centrality"]), hide_index=True, width="stretch")
             sparse = api_get("/api/graph/adjacency", params)
             st.caption(f"Sparse adjacency storage · {sparse['shape'][0]} × {sparse['shape'][1]} CSR · {sparse['nonzero_entries']:,} nonzero entries · {sparse['sparse_bytes']:,} bytes vs {sparse['dense_float32_bytes']:,} dense bytes")
             if st.button("Detect feature communities"):
                 result = api_get("/api/graph/communities", params)
-                st.dataframe(pd.DataFrame([{k:v for k,v in item.items() if k != "nodes"} for item in result["communities"]]), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame([{k:v for k,v in item.items() if k != "nodes"} for item in result["communities"]]), hide_index=True, width="stretch")
 
 with model_tab:
     st.subheader("Random Forest baseline")
-    st.write("Evaluate the dataset label using a stratified held-out split. Predictors exclude identifiers, duplicate outcome fields, follow-up duration, and post-baseline treatment or response fields.")
+    st.write("Select **Evaluate model** to train on one part of the cohort and score on a held-out part. Identifiers, duplicate outcome fields, follow-up duration, and post-baseline treatment or response fields are excluded from predictors.")
     st.info("The supplied dataset's provenance and clinical validation status are undocumented. Results are for educational exploration and are not medical advice or patient-care predictions.")
     if st.button("Evaluate model", type="primary"):
         with st.spinner("Training and evaluating the baseline…"):
@@ -186,31 +206,31 @@ with model_tab:
         st.caption(f"Train: {result['train_records']:,} · Test: {result['test_records']:,} · Target: {result['target']}")
         cm = pd.DataFrame(result["confusion_matrix"], index=["Actual survived", "Actual death"], columns=["Predicted survived", "Predicted death"])
         st.markdown("**Confusion matrix**")
-        st.dataframe(cm, use_container_width=True)
+        st.dataframe(cm, width="stretch")
         importance = pd.DataFrame(result["feature_importance"])
         if not importance.empty:
             importance = importance.sort_values("importance")
             fig = px.bar(importance, x="importance", y="feature", orientation="h", color="importance", color_continuous_scale="Teal")
             fig.update_layout(height=520, coloraxis_showscale=False, margin=dict(l=0,r=0,t=15,b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else:
         st.caption("Run the evaluation to view held-out metrics and feature importance.")
 
 with patient_tab:
     st.subheader("Patient ID lookup")
-    st.caption("Lookup searches the entire dataset, regardless of the cohort filters in the sidebar.")
+    st.caption("Enter a full or partial ID. Search covers the entire dataset, regardless of the cohort filters in the sidebar.")
     query = st.text_input("Patient ID", placeholder="SYN-00001").strip()
     if query:
         result = api_get("/api/patients", {"query": query, "limit": 100})
         if result["total"]:
             st.success(f"Found {result['total']} matching record(s).")
-            st.dataframe(pd.DataFrame(result["items"]), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(result["items"]), hide_index=True, width="stretch")
         else:
             st.warning(f"No patient ID matching ‘{query}’ was found. Try an ID such as SYN-00001.")
     else:
         result = api_get("/api/patients", {**params, "limit": 100})
         st.caption(f"Showing {min(result['total'], result['limit'])} of {result['total']:,} filtered records.")
-        st.dataframe(pd.DataFrame(result["items"]), hide_index=True, use_container_width=True, height=500)
+        st.dataframe(pd.DataFrame(result["items"]), hide_index=True, width="stretch", height=500)
         export = requests.get(f"{API_URL}/api/patients/export.csv", params=params, timeout=30)
         if export.ok:
             st.download_button("Download filtered CSV", export.content, "oncopath_filtered_cohort.csv", "text/csv")

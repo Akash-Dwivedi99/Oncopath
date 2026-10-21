@@ -18,8 +18,12 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "oncopath-api",
-        "pattern": [{ "regexp": "^(.*)$" }],
-        "background": { "activeOnStart": true, "beginsPattern": ".*", "endsPattern": "Uvicorn running on" }
+        "pattern": [{ "regexp": "^(.*)$", "message": 1 }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Uvicorn running on"
+        }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "oncopath" }
     },
@@ -32,8 +36,12 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "oncopath-dashboard",
-        "pattern": [{ "regexp": "^(.*)$" }],
-        "background": { "activeOnStart": true, "beginsPattern": ".*", "endsPattern": "Local URL: http://localhost:8501" }
+        "pattern": [{ "regexp": "^(.*)$", "message": 1 }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Local URL: http://localhost:8501"
+        }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "oncopath" }
     },

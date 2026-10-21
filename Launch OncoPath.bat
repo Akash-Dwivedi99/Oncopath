@@ -1,10 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+set "ONCOPATH_VENV=%LOCALAPPDATA%\OncoPath\venv"
 
-if not exist ".venv\Scripts\python.exe" (
-    echo Creating local Python environment...
-    python -m venv .venv
+if not exist "%ONCOPATH_VENV%\Scripts\python.exe" (
+    echo Creating Python environment in the short path "%ONCOPATH_VENV%"...
+    python -m venv "%ONCOPATH_VENV%"
     if errorlevel 1 (
         echo Could not create the environment. Install Python 3.10 or newer and try again.
         pause
@@ -12,7 +13,7 @@ if not exist ".venv\Scripts\python.exe" (
     )
 )
 
-call ".venv\Scripts\activate.bat"
+call "%ONCOPATH_VENV%\Scripts\activate.bat"
 python -c "import fastapi, uvicorn, streamlit, pandas, numpy, networkx, scipy, sklearn, plotly, requests, dotenv" >nul 2>&1
 if errorlevel 1 (
     python -m pip install -r requirements.txt
